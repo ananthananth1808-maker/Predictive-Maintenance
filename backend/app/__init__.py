@@ -1,0 +1,1 @@
+"""MaintenAI backend application package."""
