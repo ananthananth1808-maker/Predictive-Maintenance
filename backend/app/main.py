@@ -181,18 +181,19 @@ def create_prediction(payload: PredictionInput, db: Session = Depends(get_db)):
         }
     )
 
-    prediction = None
-    if machine_id:
-        prediction = Prediction(
-            machine_id=machine_id,
-            failure_probability=result["failure_probability"],
-            health_status=result["health_status"],
-            model_version="v1",
-        )
-        db.add(prediction)
-        db.commit()
-        db.refresh(prediction)
+    # Always persist the prediction, even if machine_id is null
+    prediction = Prediction(
+        machine_id=machine_id,
+        failure_probability=result["failure_probability"],
+        health_status=result["health_status"],
+        model_version="v1",
+    )
+    db.add(prediction)
+    db.commit()
+    db.refresh(prediction)
 
+    # Create alert and sensor readings only if machine_id is provided
+    if machine_id:
         alert = AlertService.create_alert(db, machine_id, result["failure_probability"], result["health_status"])
 
         sensor = SensorReading(
@@ -211,7 +212,7 @@ def create_prediction(payload: PredictionInput, db: Session = Depends(get_db)):
         failure_probability=result["failure_probability"],
         health_status=result["health_status"],
         risk_level=result["risk_level"],
-        created_at=prediction.created_at if prediction else None,
+        created_at=prediction.created_at,
     )
     return response
 

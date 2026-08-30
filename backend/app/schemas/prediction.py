@@ -25,7 +25,7 @@ class PredictionResult(BaseModel):
 
 class PredictionRead(BaseModel):
     id: int
-    machine_id: str
+    machine_id: str | None
     failure_probability: float
     health_status: str
     model_version: str

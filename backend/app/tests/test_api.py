@@ -108,6 +108,49 @@ def test_prediction_endpoint_accepts_real_time_sensor_input_without_machine_reco
     assert payload['risk_level'] in {'LOW', 'MEDIUM', 'HIGH'}
 
 
+def test_realtime_prediction_with_null_machine_id_is_persisted():
+    """Regression test: verify that realtime predictions (machine_id=null) are persisted to DB."""
+    # Submit a realtime prediction without machine_id
+    predict_response = client.post('/api/v1/predict', json={
+        'type': 'M',
+        'air_temperature': 300.0,
+        'process_temperature': 310.0,
+        'rotational_speed': 1500,
+        'torque': 40.0,
+        'tool_wear': 100.0,
+    })
+    assert predict_response.status_code == 200
+    predict_payload = predict_response.json()
+    assert predict_payload['machine_id'] is None
+    assert 0.0 <= predict_payload['failure_probability'] <= 1.0
+    
+    # Verify the prediction is persisted and returned by GET /api/v1/predictions
+    predictions_response = client.get('/api/v1/predictions')
+    assert predictions_response.status_code == 200
+    predictions = predictions_response.json()
+    
+    # Should have at least one prediction (the one we just created)
+    assert len(predictions) >= 1
+    
+    # Find the realtime prediction (machine_id=null)
+    realtime_preds = [p for p in predictions if p['machine_id'] is None]
+    assert len(realtime_preds) >= 1, "Realtime prediction with machine_id=null not found in prediction history"
+    
+    # Verify it has the correct data
+    realtime_pred = realtime_preds[0]
+    assert 0.0 <= realtime_pred['failure_probability'] <= 1.0
+    assert realtime_pred['health_status'] in {'NORMAL', 'WARNING', 'CRITICAL'}
+    assert realtime_pred['model_version'] == 'v1'
+    
+    # Verify it appears in the dashboard summary
+    summary_response = client.get('/api/v1/dashboard/summary')
+    assert summary_response.status_code == 200
+    summary = summary_response.json()
+    
+    # Dashboard should show at least one recent prediction
+    assert len(summary.get('recent_predictions', [])) >= 1
+
+
 def test_alert_and_maintenance_endpoints():
     alert_response = client.get('/api/v1/alerts')
     assert alert_response.status_code == 200
