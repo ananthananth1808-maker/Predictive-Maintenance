@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
-from notebook import app
+
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_URL, FRONTEND_URL
