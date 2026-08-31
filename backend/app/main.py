@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
+from notebook import app
 from sqlalchemy.orm import Session
 
 from app.config import BACKEND_URL, FRONTEND_URL
@@ -24,15 +25,19 @@ from app.schemas.prediction import PredictionInput, PredictionRead, PredictionRe
 from app.schemas.sensor import SensorReadingCreate, SensorReadingRead
 from app.services.ml_service import MLService
 
-app = FastAPI(title="MaintenAI API", version="1.0.0", description="AI-powered predictive maintenance platform")
+from fastapi.middleware.cors import CORSMiddleware
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL, "http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://predictive-maintenance-6vxg8m7t5-ananths-projects-c47f79df.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 Base.metadata.create_all(bind=engine)
 ml_service = MLService()
 ai_service = AIService()
