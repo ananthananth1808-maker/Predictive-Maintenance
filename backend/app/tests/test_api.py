@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.database import Base, get_db
+from app.database import Base, ensure_sqlite_compatibility, get_db
 from app.main import app
 from app.models.machine import Machine
 
@@ -50,6 +50,39 @@ def reset_db():
     db.close()
     yield
     Base.metadata.drop_all(bind=test_engine)
+
+
+def test_sqlite_prediction_table_allows_null_machine_ids_for_realtime_predictions(tmp_path):
+    db_path = tmp_path / 'legacy_predictions.db'
+    legacy_engine = create_engine(f'sqlite:///{db_path}', connect_args={'check_same_thread': False})
+
+    with legacy_engine.begin() as conn:
+        conn.exec_driver_sql(
+            '''
+            CREATE TABLE predictions (
+                id INTEGER PRIMARY KEY,
+                machine_id VARCHAR(50) NOT NULL,
+                failure_probability FLOAT NOT NULL,
+                health_status VARCHAR(50) NOT NULL,
+                model_version VARCHAR(50) DEFAULT 'v1',
+                created_at DATETIME NOT NULL
+            )
+            '''
+        )
+        conn.exec_driver_sql(
+            "INSERT INTO predictions (id, machine_id, failure_probability, health_status, model_version, created_at) VALUES (1, 'M-LEGACY', 0.42, 'WARNING', 'v1', '2024-01-01T00:00:00')"
+        )
+
+    ensure_sqlite_compatibility(legacy_engine)
+
+    with legacy_engine.begin() as conn:
+        columns = conn.exec_driver_sql('PRAGMA table_info(predictions)').fetchall()
+        machine_id_column = next(col for col in columns if col[1] == 'machine_id')
+        assert machine_id_column[3] == 0
+        conn.exec_driver_sql(
+            "INSERT INTO predictions (id, machine_id, failure_probability, health_status, model_version, created_at) VALUES (2, NULL, 0.11, 'NORMAL', 'v1', '2024-01-02T00:00:00')"
+        )
+        assert conn.exec_driver_sql('SELECT COUNT(*) FROM predictions WHERE machine_id IS NULL').fetchone()[0] == 1
 
 
 def test_health_endpoint():
